@@ -122,16 +122,27 @@ def get_prices(tickers, period):
     })
     return result
 
-def get_portfolio(tickers, budget, start, end):
-    period = get_dates(start, end)
-    prices = get_prices(tickers, period)
-    best5 = prices.nlargest(5, "Return")
+def get_portfolio(tickers, budget, start, end, data):
+    start = pd.to_datetime(start)
+    end = pd.to_datetime(end)
+    # Create an empty DataFrame for the results
+    returns_data = pd.DataFrame(columns=["Ticker", "Starting Value", "Return"])
+    price_start = data.loc[start][tickers]
+    price_end = data.loc[end][tickers]
+    returns = (price_end - price_start)/price_start
+
+    returns_data = pd.DataFrame({
+    "Price": price_start,
+    "Return": returns
+    })
+    
+    best5 = returns_data.nlargest(5, "Return")
     budget_split = np.array([0.4,0.2,0.1,0.05,0.05]) * budget
-    port = np.zeros(5)
+    port = np.zeros(5, dtype=np.int64)
     for i in range(4,-1,-1):
-        port[i] = budget_split[i] // best5.iloc[i]["Initial Price"]
+        port[i] = budget_split[i] // best5.iloc[i]["Price"]
         if i < 0:
-            budget_split[i+1] += budget_split[i] - port[i]*best5.iloc[i]["Initial Price"]
+            budget_split[i+1] += budget_split[i] - port[i]*best5.iloc[i]["Price"]
     return [(asset, port[i]) for i,asset in enumerate(best5.index)]
 
 
@@ -158,17 +169,18 @@ def interpret_investment_prompt(prompt, categories):
         "Budget": budget
     }
 
-
+# Load the tickers and sectors
+tickers_df = pd.read_csv(r'C:\Users\owain\Documents\Hackathon\KMITT\mo money\ticker_sector.csv')
+# Load the historical data
+historical_df = pd.read_csv(r"C:\Users\owain\Documents\Hackathon\KMITT\mo money\historical_data.csv", index_col=0, parse_dates=True)
 # Example prompt
 generated_context = "Andrew Vega is 77 years old and his investment start date was February 9th, 2016. His investment end date was July 14th, 2016. He enjoys knitting and avoids Real Estate and Construction. Their total investment budget is $49434."
 prompt = "What does this person not want to invest in? " + generated_context
-categories = ['Unknown', 'Energy', 'Consumer Cyclical', 'Basic Materials', 'Real Estate', 'Industrials', 'Communication Services', 'Healthcare', 'Technology', 'Financial Services', 'Utilities', 'Consumer Defensive']
+categories = tickers_df["Sector"].unique()
 
 # Interpreting the prompt
 investment_info = interpret_investment_prompt(prompt, categories)
 
-# Load the CSV file into a pandas DataFrame
-tickers_df = pd.read_csv(r'C:\Users\owain\Documents\Hackathon\KMITT\mo money\tickers_with_sectors.csv')
 
 # Filter the DataFrame to exclude rows with sectors in "Avoids Investment In" (case-insensitive)
 remaining_tickers = tickers_df[~tickers_df['Sector'].str.lower().isin([sector.lower() for sector in investment_info['Avoids Investment In']])]['Ticker']
@@ -176,7 +188,7 @@ remaining_tickers = tickers_df[~tickers_df['Sector'].str.lower().isin([sector.lo
 # Convert the filtered DataFrame column to a pandas Series
 remaining_tickers = remaining_tickers.reset_index(drop=True)
 
-portfolio = get_portfolio(remaining_tickers.tolist(), investment_info["Budget"], investment_info["Start"], investment_info["End"])
+portfolio = get_portfolio(remaining_tickers.tolist(), float(investment_info["Budget"]), investment_info["Start"], investment_info["End"], historical_df)
 print(portfolio)
 
 # # Save the pandas Series to a CSV file
