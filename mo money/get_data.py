@@ -3,6 +3,10 @@ import pandas as pd
 
 tickers = [
     "AAPL",  # Apple Inc.
+    "AON",
+    "BK",
+    "COST",
+    "FDX",
     "MSFT",  # Microsoft Corp.
     "JNJ",   # Johnson & Johnson
     "PG",    # Procter & Gamble Co.
@@ -54,3 +58,4 @@ def get_sectors():
     data.to_csv(r"C:\Users\owain\Documents\Hackathon\KMITT\mo money\ticker_sector.csv")
 
 get_prices()
+get_sectors()
