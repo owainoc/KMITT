@@ -10,7 +10,7 @@ URL = "mts-prism.com"
 PORT = 8082
 
 # Please do NOT share this information anywhere, unless you want your team to be cooked.
-TEAM_API_CODE = "47c458aa60dc866b468bd090793c4e5b"
+TEAM_API_CODE = "2b57102b8df20938be39b22b5f0dcf25"
 # @cyrus or @myguysai on Discord if you need an API key
 
 
@@ -90,37 +90,37 @@ def send_portfolio(weighted_stocks):
     return send_post_request("/submit", data=data)
 
 
-def get_dates(start, end):
-    ticker = yf.Ticker("KO")
-    start = pd.to_datetime(start)
-    end = pd.to_datetime(end)
+# def get_dates(start, end):
+#     ticker = yf.Ticker("KO")
+#     start = pd.to_datetime(start)
+#     end = pd.to_datetime(end)
 
-    data_start = ticker.history(start=start, end=start + pd.Timedelta(days=3))
-    data_end = ticker.history(start=end - pd.Timedelta(days=3), end=end)
-    # If there's no data at all (e.g., wrong ticker), return None
-    if data_start.empty or data_end.empty:
-        print("ahhhh")
-        return None
+#     data_start = ticker.history(start=start, end=start + pd.Timedelta(days=3))
+#     data_end = ticker.history(start=end - pd.Timedelta(days=3), end=end)
+#     # If there's no data at all (e.g., wrong ticker), return None
+#     if data_start.empty or data_end.empty:
+#         print("ahhhh")
+#         return None
   
-    start = data_start.index[0]
-    end = data_end.index[-1]
-    return start, end
+#     start = data_start.index[0]
+#     end = data_end.index[-1]
+#     return start, end
 
-def get_prices(tickers, period):
-    data_start = yf.download(tickers, start=period[0], end=period[0] + pd.Timedelta(days=1))
-    data_end = yf.download(tickers, start=period[1], end=period[1] + pd.Timedelta(days=1))
-    # Extract Open and Close prices for each ticker
-    open_prices = data_start["Open"].iloc[0]
-    close_prices = data_end["Close"].iloc[0]
-    # Calculate returns
-    returns = (close_prices - open_prices) / open_prices
+# def get_prices(tickers, period):
+#     data_start = yf.download(tickers, start=period[0], end=period[0] + pd.Timedelta(days=1))
+#     data_end = yf.download(tickers, start=period[1], end=period[1] + pd.Timedelta(days=1))
+#     # Extract Open and Close prices for each ticker
+#     open_prices = data_start["Open"].iloc[0]
+#     close_prices = data_end["Close"].iloc[0]
+#     # Calculate returns
+#     returns = (close_prices - open_prices) / open_prices
 
-    # Build final DataFrame
-    result = pd.DataFrame({
-        'Initial Price': open_prices,
-        'Return': returns
-    })
-    return result
+#     # Build final DataFrame
+#     result = pd.DataFrame({
+#         'Initial Price': open_prices,
+#         'Return': returns
+#     })
+#     return result
 
 def get_portfolio(tickers, budget, start, end, data):
     start = pd.to_datetime(start)
@@ -173,14 +173,29 @@ def interpret_investment_prompt(prompt, categories):
 tickers_df = pd.read_csv(r'C:\Users\owain\Documents\Hackathon\KMITT\mo money\ticker_sector.csv')
 # Load the historical data
 historical_df = pd.read_csv(r"C:\Users\owain\Documents\Hackathon\KMITT\mo money\historical_data.csv", index_col=0, parse_dates=True)
+success, information = get_my_current_information()
+if not success:
+    print(f"Error: {information}")
+print(f"Team information: ", information)
 # Example prompt
-generated_context = "Andrew Vega is 77 years old and his investment start date was February 9th, 2016. His investment end date was July 14th, 2016. He enjoys knitting and avoids Real Estate and Construction. Their total investment budget is $49434."
-prompt = "What does this person not want to invest in? " + generated_context
-categories = tickers_df["Sector"].unique()
+success, context = get_context()
+if not success:
+    print(f"Error: {context}")
+print(f"Context provided: ", context)
 
+# Parse the context string as JSON
+context_data = json.loads(context)
+# Construct a plain-text prompt
+prompt = (
+    f"Joseph Becker avoids {context_data['message'].split('avoids ')[1].split('.')[0]}. "
+    f"His investment start date was {context_data['message'].split('start date was ')[1].split(' and')[0]}. "
+    f"His investment end date was {context_data['message'].split('end date was ')[1].split('.')[0]}. "
+    f"His investment budget is ${context_data['message'].split('budget of $')[1].split('.')[0]}."
+)
+categories =['Technology', 'Financial Services', 'Consumer Defensive', 'Industrials',
+ 'Healthcare', 'Energy', 'Consumer Cyclical', 'Communication Services']
 # Interpreting the prompt
 investment_info = interpret_investment_prompt(prompt, categories)
-
 
 # Filter the DataFrame to exclude rows with sectors in "Avoids Investment In" (case-insensitive)
 remaining_tickers = tickers_df[~tickers_df['Sector'].str.lower().isin([sector.lower() for sector in investment_info['Avoids Investment In']])]['Ticker']
@@ -190,6 +205,10 @@ remaining_tickers = remaining_tickers.reset_index(drop=True)
 
 portfolio = get_portfolio(remaining_tickers.tolist(), float(investment_info["Budget"]), investment_info["Start"], investment_info["End"], historical_df)
 print(portfolio)
+success, response = send_portfolio(portfolio)
+if not success:
+    print(f"Error: {response}")
+print(f"Evaluation response: ", response)
 
 # # Save the pandas Series to a CSV file
 # remaining_tickers.to_csv(r'C:\Users\owain\Documents\Hackathon\KMITT\mo money\remainingtickers.csv', index=False)
